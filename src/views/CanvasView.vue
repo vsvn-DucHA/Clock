@@ -1,59 +1,113 @@
 <template>
-  <div>
-    <canvas ref="canvasRef" height="600" width="600" />
+  <div
+    style="
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    "
+  >
+    <canvas ref="canvasRef" />
   </div>
 </template>
 <script setup lang="ts">
-import { onMounted, useTemplateRef } from 'vue'
-
+import { onMounted, onUnmounted, useTemplateRef } from 'vue'
+import NightImage from '@/assets/night.svg'
+const timeList = [
+  [23, 7, 'ngủ'],
+  [7, 8, 'Prepare -> Move'],
+  [8, 12, 'Ca sáng'],
+  [12, 13, 'Ca sáng'],
+  [13, 17, 'Ca sáng'],
+  [17, 208 / 12, 'Ca sáng'],
+  [208 / 12, 18, 'Ca sáng'],
+]
+let animationFrameId: number
+const img = new Image()
+img.crossOrigin = 'anonymous'
+img.src = NightImage
 const canvasRef = useTemplateRef('canvasRef')
-const update = () => {
+
+function update() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  // Xóa canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  // Vẽ các đối tượng (bao gồm ảnh)
+  drawContent(ctx)
+
+  // Yêu cầu vẽ lại
+  animationFrameId = requestAnimationFrame(update)
+}
+const drawContent = (ctx: CanvasRenderingContext2D) => {
   const canvas = canvasRef.value
   if (!canvas) return
   const now = new Date()
   // const hour = now.getHours()
   // const minute = now.getMinutes()
   const second = now.getSeconds()
-  const ctx = canvas.getContext('2d')!
+
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  const centerX = canvas.width / 2
-  const centerY = canvas.height / 2
+
+  const pixelRatio = window.devicePixelRatio || 1
+  // Kích thước hiển thị
+  const c = 600
+  const displayWidth = c
+  const displayHeight = c
+
+  // Cập nhật kích thước nội bộ theo tỷ lệ pixel
+  canvas.width = displayWidth * pixelRatio
+  canvas.height = displayHeight * pixelRatio
+  canvas.style.width = `${displayWidth}px`
+  canvas.style.height = `${displayHeight}px`
+
+  // Phóng to nội dung theo tỷ lệ pixel
+  ctx.scale(pixelRatio, pixelRatio)
+
+  const centerX = displayWidth / 2
+  const centerY = displayHeight / 2
   const radius = 200
-  const numPoints = 24
+  const numPoints = 288
   const offset = 30
   ctx.lineCap = 'round'
-  // Vẽ hình tròn
-  ctx.beginPath()
-  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-  ctx.fillStyle = 'transparent'
-  ctx.fill()
-  ctx.lineWidth = 2
-  ctx.strokeStyle = '#000'
-  ctx.stroke()
 
-  ctx.beginPath()
-  ctx.arc(centerX, centerY, radius + 10, 0, 2 * Math.PI)
-  ctx.lineWidth = 1
-  ctx.strokeStyle = '#000'
-  ctx.stroke()
+  const flatUniqueTimeList = Array.from(new Set(timeList.flat()))
 
   // vẽ số vs vạch ngăn cách
   for (let i = 0; i < numPoints; i++) {
-    const angle = (i * 2 * Math.PI) / numPoints - (Math.PI * 10) / 24
+    if (!flatUniqueTimeList.includes((i + 1) / 12)) {
+      continue
+    }
+
+    const angle =
+      (i * 2 * Math.PI) / numPoints -
+      (Math.PI * (numPoints / 2 - 2)) / numPoints
     const x1 = centerX + (radius - offset) * Math.cos(angle)
     const y1 = centerY + (radius - offset) * Math.sin(angle)
     const x2 = centerX + (radius - offset / 2) * Math.cos(angle)
     const y2 = centerY + (radius - offset / 2) * Math.sin(angle)
     const x3 = centerX + (radius + offset / 2 + 10) * Math.cos(angle)
     const y3 = centerY + (radius + offset / 2 + 10) * Math.sin(angle)
-    let x4 = centerX + (radius + offset / 2 + 30) * Math.cos(angle)
-    let y4 = centerY + (radius + offset / 2 + 30) * Math.sin(angle)
+    let x4 = centerX + (radius + offset / 2 + 20) * Math.cos(angle)
+    let y4 = centerY + (radius + offset / 2 + 20) * Math.sin(angle)
 
-    if (i >= 4 && i <= 18) {
+    if (i >= numPoints / 4 - 1 && i <= (numPoints / 4) * 3 - 1) {
       y4 += 7
     }
-    if (i >= 11 && i <= 23) {
-      x4 -= 10
+
+    if (i >= numPoints / 2 - 1 && i <= (numPoints / 24) * 13 - 1) {
+      x4 += 8
+    }
+
+    if (i >= numPoints / 2 - 1) {
+      ctx.textAlign = 'end'
+    } else {
+      ctx.textAlign = 'start'
     }
 
     const x0 = centerX + offset * Math.cos(angle)
@@ -77,9 +131,26 @@ const update = () => {
 
     ctx.fillStyle = 'black'
     ctx.font = '18px Kalam'
-    const text = `${i + 1}`
+    const time = (i + 1) / 12
+    const text = Number.isInteger(time) ? `${time}` : convertToHourMinute(time)
+
     ctx.fillText(text, x4, y4)
   }
+  // Vẽ hình tròn
+  ctx.beginPath()
+  ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+  ctx.fillStyle = 'transparent'
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = '#000'
+  ctx.stroke()
+
+  // Vẽ viền ngoài
+  ctx.beginPath()
+  ctx.arc(centerX, centerY, radius + 10, 0, 2 * Math.PI)
+  ctx.lineWidth = 1
+  ctx.strokeStyle = '#000'
+  ctx.stroke()
 
   // vẽ trái tim
   const offsetX = centerX - 229
@@ -107,6 +178,30 @@ const update = () => {
   ctx.strokeStyle = '#f83b6d'
   ctx.stroke()
 
+  // vẽ vòng tròn tâm
+  ctx.beginPath()
+  ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI) // Bán kính lớn hơn để tạo viền ngoài
+  ctx.lineWidth = 1.5 // Độ dày viền ngoài
+  ctx.strokeStyle = 'rgba(0,0,0,.5)' // Màu viền ngoài
+  ctx.stroke()
+
+  drawRotatedTextBetweenDirections(
+    ctx,
+    'Prepare -> Move',
+    centerX,
+    centerY,
+    radius,
+    7,
+    8,
+  )
+  ctx.drawImage(
+    img,
+    centerX + 30,
+    centerY - 100,
+    img.naturalWidth * 0.4,
+    img.naturalHeight * 0.4,
+  )
+
   const angle = (second * 2 * Math.PI) / 60 - Math.PI / 2
   const x0 = centerX - 45 * Math.cos(angle)
   const y0 = centerY - 45 * Math.sin(angle)
@@ -131,33 +226,54 @@ const update = () => {
   ctx.strokeStyle = '#FFD700'
   ctx.lineWidth = 2
   ctx.stroke()
-
-  // vẽ vòng tròn tâm
-  ctx.beginPath()
-  ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI) // Bán kính lớn hơn để tạo viền ngoài
-  ctx.lineWidth = 2 // Độ dày viền ngoài
-  ctx.strokeStyle = '#000' // Màu viền ngoài
-  ctx.stroke()
-  // const arrowLength = 10
-  // const arrowX1 = x3 - arrowLength * Math.cos(angle - Math.PI / 6)
-  // const arrowY1 = y3 - arrowLength * Math.sin(angle - Math.PI / 6)
-  // const arrowX2 = x3 - arrowLength * Math.cos(angle + Math.PI / 6)
-  // const arrowY2 = y3 - arrowLength * Math.sin(angle + Math.PI / 6)
-
-  // // Vẽ mũi tên
-  // ctx.beginPath()
-  // ctx.moveTo(x3, y3)
-  // ctx.lineTo(arrowX1, arrowY1)
-  // ctx.moveTo(x3, y3)
-  // ctx.lineTo(arrowX2, arrowY2)
-  // ctx.strokeStyle = '#ffca77'
-  // ctx.lineWidth = 2
-  // ctx.stroke()
 }
+const drawRotatedTextBetweenDirections = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  centerY: number,
+  radius: number,
+  direction1: number,
+  direction2: number,
+) => {
+  // Chuyển hướng thành góc tính bằng radian
+  const angle1 = ((direction1 % 24) / 12) * Math.PI
+  const angle2 = ((direction2 % 24) / 12) * Math.PI
+
+  // Tính góc trung bình giữa hai hướng
+  const avgAngle = (angle1 + angle2) / 2 - Math.PI / 2
+
+  // Tính tọa độ chữ dựa vào góc trung bình
+  const textX = centerX + radius * Math.cos(avgAngle) - 10
+  const textY = centerY + radius * Math.sin(avgAngle)
+
+  // Lưu trạng thái gốc của canvas
+  ctx.save()
+
+  // Dịch chuyển và xoay canvas tới vị trí và góc mong muốn
+  ctx.translate(textX, textY)
+  ctx.rotate(avgAngle)
+
+  // Vẽ chữ tại gốc tọa độ mới
+  ctx.font = '12px Kalam'
+  ctx.textAlign = 'end'
+  ctx.fillText(text, 0, 0)
+
+  // Khôi phục trạng thái canvas
+  ctx.restore()
+}
+function convertToHourMinute(decimalTime: number): string {
+  const hours = Math.floor(decimalTime)
+  const minutes = Math.round((decimalTime - hours) * 60)
+
+  return `${hours}h${minutes < 10 ? '0' + minutes : minutes}`
+}
+
 onMounted(() => {
-  setInterval(() => {
-    update()
-  }, 1000)
+  update()
+})
+onUnmounted(() => {
+  cancelAnimationFrame(animationFrameId)
 })
 </script>
 
